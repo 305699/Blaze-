@@ -1,44 +1,43 @@
-const { default: makeWASocket, DisconnectReason } = require('@whiskeysockets/baileys');
-const { makeWASocket, useSingleFileAuthState, DisconnectReason } = require('@whiskeysockets/baileys'); 
-
+const { makeWASocket, useSingleFileAuthState, DisconnectReason } = require('@whiskeysockets/baileys');
+const { Boom } = require('@hapi/boom');
 const P = require('pino');
+const fs = require('fs');
+
 const { state, saveState } = useSingleFileAuthState('./auth_info.json');
-function startSock() {
-    const sock = makeWASocket({
-        auth: state,
-        printQRInTerminal: true,
-        logger: P({ level: 'silent' })
-    });
 
-    sock.ev.on('messages.upsert', async ({ messages }) => {
-        const msg = messages[0];
-        if (!msg.message) return;
+const startSock = () => {
+  const sock = makeWASocket({
+    logger: P({ level: 'silent' }),
+    printQRInTerminal: true,
+    auth: state,
+  });
 
-        const from = msg.key.remoteJid;
-        const messageType = Object.keys(msg.message)[0];
-        const text = msg.message.conversation || msg.message[messageType]?.text || '';
+  sock.ev.on('creds.update', saveState);
 
-        console.log(`📩 Message from ${from}: ${text}`);
+  sock.ev.on('connection.update', ({ connection, lastDisconnect }) => {
+    if (connection === 'close') {
+      const shouldReconnect = (lastDisconnect.error)?.output?.statusCode !== DisconnectReason.loggedOut;
+      console.log('connection closed due to', lastDisconnect.error, ', reconnecting:', shouldReconnect);
+      if (shouldReconnect) {
+        startSock();
+      }
+    } else if (connection === 'open') {
+      console.log('✅ WhatsApp connected');
+    }
+  });
 
-        if (text.toLowerCase() === 'hi' || text.toLowerCase() === 'hello') {
-            await sock.sendMessage(from, { text: '👋 Hello! I am Blaze Bot.' });
-        }
-    });
+  sock.ev.on('messages.upsert', async ({ messages, type }) => {
+    console.log('📩 New message', messages[0]);
+    const msg = messages[0];
+    if (!msg.message) return;
+    if (msg.key.fromMe) return;
 
-    sock.ev.on('connection.update', (update) => {
-        const { connection, lastDisconnect } = update;
-        if (connection === 'close') {
-            const shouldReconnect = (lastDisconnect.error)?.output?.statusCode !== DisconnectReason.loggedOut;
-            console.log('🔁 Connection closed. Reconnecting...', shouldReconnect);
-            if (shouldReconnect) {
-                startSock();
-            }
-        } else if (connection === 'open') {
-            console.log('✅ Connected to WhatsApp!');
-        }
-    });
+    const text = msg.message.conversation || msg.message.extendedTextMessage?.text || "";
 
-    sock.ev.on('creds.update', saveState);
-}
+    if (text.toLowerCase() === 'hi') {
+      await sock.sendMessage(msg.key.remoteJid, { text: 'Hello! I am Blaze Bot 🔥' });
+    }
+  });
+};
 
 startSock();
