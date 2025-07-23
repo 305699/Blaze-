@@ -1,13 +1,13 @@
 {
-  "name": "blaze-whatsapp-bot",
+  "name": "blaze-bot",
   "version": "1.0.0",
-  "description": "A basic WhatsApp bot using @whiskeysockets/baileys",
+  "description": "Blaze WhatsApp Bot using @whiskeysockets/baileys",
   "main": "index.js",
   "scripts": {
     "start": "node index.js"
   },
   "dependencies": {
-    "@whiskeysockets/baileys": "^6.7.0",
+    "@whiskeysockets/baileys": "^6.7.1",
     "pino": "^8.0.0"
   }
 }
