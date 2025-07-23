@@ -1,34 +1,45 @@
-const { default: makeWASocket, useMultiFileAuthState, fetchLatestBaileysVersion } = require('@whiskeysockets/baileys');
-const pino = require('pino');
+const { default: makeWASocket, DisconnectReason } = require('@whiskeysockets/baileys');
+const { useSingleFileAuthState } = require('@whiskeysockets/baileys/lib/auth-state');
+const P = require('pino');
 
-async function startBot() {
-    const { state, saveCreds } = await useMultiFileAuthState('auth_info_baileys');
-    const { version } = await fetchLatestBaileysVersion();
+const { state, saveState } = useSingleFileAuthState('./auth_info.json');
 
+function startSock() {
     const sock = makeWASocket({
-        version,
-        printQRInTerminal: true,
         auth: state,
-        logger: pino({ level: 'silent' })
+        printQRInTerminal: true,
+        logger: P({ level: 'silent' })
     });
-
-    sock.ev.on('creds.update', saveCreds);
 
     sock.ev.on('messages.upsert', async ({ messages }) => {
         const msg = messages[0];
-        if (!msg.message || msg.key.fromMe) return;
+        if (!msg.message) return;
 
-        const sender = msg.key.remoteJid;
-        const text = msg.message.conversation || msg.message.extendedTextMessage?.text;
+        const from = msg.key.remoteJid;
+        const messageType = Object.keys(msg.message)[0];
+        const text = msg.message.conversation || msg.message[messageType]?.text || '';
 
-        console.log("New message from", sender, "=>", text);
+        console.log(`📩 Message from ${from}: ${text}`);
 
-        if (text === 'hi' || text === 'Hi') {
-            await sock.sendMessage(sender, { text: 'Hello! Welcome to Blaze WhatsApp Bot 🔥' });
-        } else {
-            await sock.sendMessage(sender, { text: `You said: ${text}` });
+        if (text.toLowerCase() === 'hi' || text.toLowerCase() === 'hello') {
+            await sock.sendMessage(from, { text: '👋 Hello! I am Blaze Bot.' });
         }
     });
+
+    sock.ev.on('connection.update', (update) => {
+        const { connection, lastDisconnect } = update;
+        if (connection === 'close') {
+            const shouldReconnect = (lastDisconnect.error)?.output?.statusCode !== DisconnectReason.loggedOut;
+            console.log('🔁 Connection closed. Reconnecting...', shouldReconnect);
+            if (shouldReconnect) {
+                startSock();
+            }
+        } else if (connection === 'open') {
+            console.log('✅ Connected to WhatsApp!');
+        }
+    });
+
+    sock.ev.on('creds.update', saveState);
 }
 
-startBot();
+startSock();
