@@ -1,5 +1,6 @@
 const { default: makeWASocket, DisconnectReason } = require('@whiskeysockets/baileys');
-const { useSingleFileAuthState, default: makeWASocket } = require('@whiskeysockets/baileys');
+const { makeWASocket, useSingleFileAuthState, DisconnectReason } = require('@whiskeysockets/baileys'); 
+
 const P = require('pino');
 const { state, saveState } = useSingleFileAuthState('./auth_info.json');
 function startSock() {
